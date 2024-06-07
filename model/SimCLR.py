@@ -14,7 +14,14 @@ class SimCLR(nn.Module):
         dim_mlp = self.backbone.embed_dim
 
         # add mlp projection head
-        self.fc = nn.Sequential(nn.Linear(dim_mlp, dim_mlp), nn.ReLU(), nn.Linear(dim_mlp, 512), nn.Linear(512, out_dim))
+        self.fc = nn.Sequential(nn.Linear(dim_mlp, dim_mlp),
+                                nn.ReLU(),
+                                torch.nn.Dropout(0.1),
+                                nn.Linear(dim_mlp, 512),
+                                nn.ReLU(),
+                                torch.nn.Dropout(0.1),
+                                nn.Linear(512, out_dim)
+                                )
 
     def _get_basemodel(self, model_name):
         try:
