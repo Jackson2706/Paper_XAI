@@ -111,9 +111,11 @@ class SimMIM(nn.Module):
     def forward(self, x, mask):
         z = self.encoder(x, mask)
         x_rec = self.decoder(z)
-
-        mask = mask.repeat_interleave(self.patch_size, 1).repeat_interleave(self.patch_size, 2).unsqueeze(1).contiguous()
+        ## Fix size of mask
+        mask = mask.repeat_interleave(self.patch_size, 2).repeat_interleave(self.patch_size, 3)
         loss_recon = F.l1_loss(x, x_rec, reduction='none')
+        print(x_rec.size())
+        print(loss_recon.size())
         loss = (loss_recon * mask).sum() / (mask.sum() + 1e-5) / self.in_chans
         return loss
 
@@ -179,11 +181,24 @@ def build_simmim(config):
 if __name__ == "__main__":
     import yaml
     from config.config import AttrDict
+    from data.VindrMammoLoaderForSimMim import MammoDataset, collate_fn
+    from torch.utils.data import DataLoader, DistributedSampler
+    import torch.distributed as dist
 
     yaml_file_path = "/home/jackson/Desktop/Paper/config/simmim_pretrain__vit_base__img224__800ep.yaml"
     with open(yaml_file_path, 'r') as file:
         data = yaml.safe_load(file)
     config = AttrDict(data)
     model = build_simmim(config)
-    input = torch.rand(size=(1,3,224,224))
-    output =
+    model = model.cuda()
+    train_dataset = MammoDataset(data_path="/media/jackson/Data/archive/Processed_Images",
+                                 metadata="/media/jackson/Data/archive/split_data.csv",
+                                 phase="training",
+                                 seed=1)
+    dataloader = DataLoader(train_dataset, batch_size=2, drop_last=True, collate_fn=collate_fn)
+    for input, mask, _ in dataloader:
+        input = input.cuda(non_blocking=True)
+        mask = mask.cuda(non_blocking=True)
+        output = model(input, mask)
+        print(output)
+        break
