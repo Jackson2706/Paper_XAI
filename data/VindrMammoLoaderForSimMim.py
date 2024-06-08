@@ -5,6 +5,7 @@ import cv2
 import os
 from torchvision import transforms
 import pandas as pd
+from torch.utils.data._utils.collate import default_collate
 
 
 def seed_everything(seed: int):
@@ -73,10 +74,10 @@ class MammoDataset(Dataset):
                  phase,
                  trasnform=None,
                  certain=True,
-                 image_size = 224,
-                 mask_patch_size = 32,
-                 model_patch_size = 16,
-                 mask_ratio = 0.6,
+                 image_size=224,
+                 mask_patch_size=32,
+                 model_patch_size=16,
+                 mask_ratio=0.6,
                  seed=None):
         self.phase = phase
         self.certain = certain
@@ -106,14 +107,32 @@ class MammoDataset(Dataset):
         score = eval(birads[-1])
         return score
 
+    def __len__(self):
+        return len(self.data)
+
     def __getitem__(self, index):
         image_path = self.get_path(self.data, index)
-        print(image_path)
         image = cv2.imread(image_path)
         image = self.transform(image)
         mask = self.mask_generator()
+        mask = transforms.ToTensor()(mask)
         score = self.get_score(self.data, index)
         return image, mask, score
+
+
+def collate_fn(batch):
+    if not isinstance(batch[0][0], tuple):
+        return default_collate(batch)
+    else:
+        batch_num = len(batch)
+        ret = []
+        for item_idx in range(len(batch[0][0])):
+            if batch[0][0][item_idx] is None:
+                ret.append(None)
+            else:
+                ret.append(default_collate([batch[i][0][item_idx] for i in range(batch_num)]))
+        ret.append(default_collate([batch[i][1] for i in range(batch_num)]))
+        return ret
 
 
 if __name__ == "__main__":
